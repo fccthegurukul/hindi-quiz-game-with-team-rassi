@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tug of War - Special Logic Edition</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Bungee&family=Poppins:wght@400;700;900&display=swap');
+
+        :root {
+            --team-blue: #00d2ff;
+            --team-orange: #f27121;
+            --blue-pos: 0px;
+            --orange-pos: 0px;
+            --p-scale: 1;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Poppins', sans-serif; background: #000; color: white; overflow: hidden; height: 100vh; }
+
+        /* --- Top Scoreboard --- */
+        #top-bar {
+            position: absolute; top: 0; width: 100%; padding: 15px 30px;
+            display: flex; justify-content: space-between; align-items: center; z-index: 100;
+            background: linear-gradient(to bottom, rgba(0,0,0,1), transparent);
+        }
+        .team-tag { font-family: 'Bungee'; padding: 8px 20px; border-radius: 5px; font-size: 20px; text-transform: uppercase; text-align: center;}
+        .blue-tag { background: var(--team-blue); color: #000; box-shadow: 0 0 20px var(--team-blue); }
+        .orange-tag { background: var(--team-orange); color: #000; box-shadow: 0 0 20px var(--team-orange); }
+        
+        /* Distance Indicator */
+        .dist-indicator { font-size: 14px; font-weight: 900; margin-top: 5px; color: #fff; text-shadow: 0 0 5px #000; }
+
+        /* --- Arena --- */
+        #arena {
+            position: relative; width: 100%; height: 50vh; margin-top: 60px;
+            background: #143d16; display: flex; align-items: center; justify-content: center;
+            overflow: hidden; border-bottom: 8px solid #111;
+        }
+
+        #red-center {
+            position: absolute; left: 50%; width: 10px; height: 100%;
+            background: #ff0000; transform: translateX(-50%); z-index: 5;
+            box-shadow: 0 0 25px #ff0000;
+        }
+
+        #rope {
+            position: absolute; width: 100%; height: 16px; background: #5d4037;
+            background-image: repeating-linear-gradient(45deg, #795548 0, #795548 10px, #3e2723 10px, #3e2723 20px);
+            z-index: 15; box-shadow: 0 10px 15px rgba(0,0,0,0.5);
+            top: 52%;
+        }
+
+        .squad-container {
+            position: absolute; display: flex; align-items: flex-end; 
+            gap: calc(40px * var(--p-scale)); bottom: 15%; z-index: 20;
+            transition: transform 0.4s cubic-bezier(0.1, 0.8, 0.2, 1);
+        }
+        #blue-squad { left: 14%; flex-direction: row-reverse; transform: translateX(var(--blue-pos)); }
+        #orange-squad { right: 14%; transform: translateX(var(--orange-pos)); }
+
+        .player { transform: scale(var(--p-scale)); display: flex; flex-direction: column; align-items: center; position: relative; transition: 0.3s; }
+        .p-name { background: #000; padding: 2px 10px; border-radius: 4px; font-size: 11px; margin-bottom: 5px; border: 1px solid #444; color: #fff; }
+        .head { font-size: 55px; z-index: 30; }
+        .torso { width: 45px; height: 85px; border-radius: 15px; position: relative; box-shadow: inset -5px -5px 15px rgba(0,0,0,0.4); }
+        
+        #blue-squad .torso { background: #1565C0; transform: rotate(-8deg); }
+        #orange-squad .torso { background: #D84315; transform: rotate(8deg); }
+
+        .arm { 
+            position: absolute; width: 55px; height: 18px; background: #ffdbac; 
+            top: 25px; border-radius: 10px; z-index: 40; border: 2px solid #8d6e63;
+        }
+        #blue-squad .arm { right: -35px; transform: rotate(5deg); }
+        #orange-squad .arm { left: -35px; transform: rotate(-5deg); }
+
+        .legs { display: flex; gap: 12px; margin-top: -12px; }
+        .leg { width: 16px; height: 50px; background: #111; border-radius: 5px; }
+
+        /* --- UI Panel --- */
+        #ui-panel {
+            position: fixed; bottom: 0; width: 100%; background: #0a0a0a;
+            padding: 25px; border-top: 3px solid #222; z-index: 1000; text-align: center;
+        }
+        .turn-display {
+            background: #00d2ff; color: #000; display: inline-block; padding: 6px 25px;
+            border-radius: 5px; font-weight: 900; margin-bottom: 10px; text-transform: uppercase;
+        }
+        #question-box { font-size: 26px; font-weight: 700; margin-bottom: 25px; color: #eee; }
+
+        .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; max-width: 900px; margin: 0 auto; }
+        .opt {
+            background: #1c1c1c; padding: 20px; border-radius: 12px; border: 2px solid #333;
+            cursor: pointer; text-align: left; font-size: 18px; transition: 0.2s; color: #ccc;
+            display: flex; align-items: center;
+        }
+        .opt:hover { background: #252525; border-color: var(--team-blue); }
+        .opt span { 
+            background: #333; color: #fff; width: 40px; height: 40px; 
+            display: inline-flex; align-items: center; justify-content: center; 
+            border-radius: 8px; margin-right: 20px; font-weight: 900; border: 1px solid #555;
+        }
+
+        .shake { animation: shakeEffect 0.2s infinite; }
+        @keyframes shakeEffect { 0% { transform: translate(1px, 1px); } 50% { transform: translate(-1px, -2px); } }
+
+        /* Overlays */
+        #setup-screen { position: fixed; inset: 0; background: #000; z-index: 2000; display: flex; align-items: center; justify-content: center; }
+        .setup-card { background: #111; padding: 40px; border-radius: 20px; border: 1px solid #333; width: 500px; text-align: center; }
+        .setup-card input { width: 100%; padding: 12px; margin: 10px 0 20px; background: #000; border: 1px solid #444; color: white; border-radius: 5px; }
+        .btn-start { background: var(--team-blue); color: #000; border: none; padding: 15px 40px; font-weight: 900; cursor: pointer; border-radius: 5px; text-transform: uppercase; margin-top: 10px;}
+
+        #win-overlay { 
+            position: fixed; inset: 0; background: rgba(0,0,0,0.98); 
+            z-index: 5000; display: none; flex-direction: column; 
+            align-items: center; justify-content: center; text-align: center; 
+            overflow-y: auto; padding: 40px 0;
+        }
+        .leaderboard { width: 80%; max-width: 500px; background: #111; border: 1px solid #333; border-radius: 15px; margin: 20px 0; padding: 20px; }
+        .lb-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #222; font-size: 18px; }
+    </style>
+</head>
+<body>
+
+    <audio id="snd-correct" src="https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3"></audio>
+    <audio id="snd-wrong" src="https://assets.mixkit.co/active_storage/sfx/951/951-preview.mp3"></audio>
+    <audio id="snd-pull" src="https://assets.mixkit.co/active_storage/sfx/1187/1187-preview.mp3"></audio>
+    <audio id="snd-win" src="https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3"></audio>
+
+    <div id="top-bar">
+        <div>
+            <div class="team-tag blue-tag">Blue Team</div>
+            <div id="blue-dist" class="dist-indicator">Line: -- px</div>
+        </div>
+        <div id="battle-status" style="font-weight: 900; color: #888;">WAR ZONE ACTIVE</div>
+        <div>
+            <div class="team-tag orange-tag">Orange Team</div>
+            <div id="orange-dist" class="dist-indicator">Line: -- px</div>
+        </div>
+    </div>
+
+    <div id="setup-screen">
+        <div class="setup-card">
+            <h1 style="font-family:'Bungee'; color:var(--team-blue); margin-bottom:20px;">TUG OF WAR PRO</h1>
+            <label>Blue Team Names</label>
+            <input type="text" id="namesA" value="Rocky, Pinky">
+            <label>Orange Team Names</label>
+            <input type="text" id="namesB" value="Thor, Goku">
+            <button class="btn-start" onclick="initBattle()">START BATTLE</button>
+            <p style="margin-top:20px; font-size:12px; color:#555;">Keyboard: A, S, D, F</p>
+        </div>
+    </div>
+
+    <div id="arena">
+        <div id="red-center"></div>
+        <div id="rope"></div>
+        <div class="squad-container" id="blue-squad"></div>
+        <div class="squad-container" id="orange-squad"></div>
+    </div>
+
+    <div id="ui-panel">
+        <div id="turn-badge" class="turn-display">Player's Turn</div>
+        <div id="question-box">Question Loading...</div>
+        <div class="options-grid">
+            <div class="opt" onclick="processInput('A')" id="btnA"><span>A</span> ---</div>
+            <div class="opt" onclick="processInput('B')" id="btnB"><span>B</span> ---</div>
+            <div class="opt" onclick="processInput('C')" id="btnC"><span>C</span> ---</div>
+            <div class="opt" onclick="processInput('D')" id="btnD"><span>D</span> ---</div>
+        </div>
+        <div style="margin-top:10px; color:#444; font-size:12px;">INPUT: A, S, D, F</div>
+    </div>
+
+    <div id="win-overlay">
+        <h1 id="win-text" style="font-family:'Bungee'; font-size:60px; color:gold;">TEAM WINS!</h1>
+        <div class="leaderboard" id="leaderboard-box"></div>
+        <button class="btn-start" onclick="location.reload()" style="background:white; color:black;">REMATCH</button>
+    </div>
+
+<script>
+    const questions = [
+        { q: "Bharat ki Rajdhani?", o: ["Mumbai", "Delhi", "Kolkata", "Lucknow"], a: "B" },
+        { q: "Cricket over mein kitni balls?", o: ["4", "5", "6", "8"], a: "C" },
+        { q: "Computer ka Brain?", o: ["RAM", "CPU", "Monitor", "Keyboard"], a: "B" },
+        { q: "Solar system ka sabse bada planet?", o: ["Mars", "Jupiter", "Venus", "Saturn"], a: "B" },
+        { q: "Sabse tej janwar?", o: ["Sher", "Cheetah", "Hiran", "Ghoda"], a: "B" }
+    ];
+
+    let bPlayers = [], oPlayers = [];
+    let bPos = 0, oPos = 0;
+    let turn = "BLUE", bIdx = 0, oIdx = 0;
+    let gameOn = false, curQ = {};
+    let playerStats = {};
+
+    function playSnd(id) {
+        const s = document.getElementById(id);
+        if(s) { s.currentTime = 0; s.play().catch(e => {}); }
+    }
+
+    function initBattle() {
+        bPlayers = document.getElementById('namesA').value.split(',').map(s => s.trim()).filter(s => s);
+        oPlayers = document.getElementById('namesB').value.split(',').map(s => s.trim()).filter(s => s);
+        [...bPlayers, ...oPlayers].forEach(p => playerStats[p] = { correct: 0, wrong: 0 });
+        
+        renderSquad('blue-squad', bPlayers);
+        renderSquad('orange-squad', oPlayers);
+        document.getElementById('setup-screen').style.display = 'none';
+        gameOn = true;
+        updateDistance();
+        nextRound();
+    }
+
+    function renderSquad(id, names) {
+        const container = document.getElementById(id);
+        container.innerHTML = '';
+        names.forEach(name => {
+            const p = document.createElement('div');
+            p.className = 'player';
+            p.innerHTML = `<div class="p-name">${name}</div><div class="head">😤</div><div class="torso"><div class="arm"></div></div><div class="legs"><div class="leg"></div><div class="leg"></div></div>`;
+            container.appendChild(p);
+        });
+    }
+
+    function nextRound() {
+        if(!gameOn) return;
+        curQ = questions[Math.floor(Math.random() * questions.length)];
+        const pName = (turn === "BLUE") ? bPlayers[bIdx % bPlayers.length] : oPlayers[oIdx % oPlayers.length];
+        
+        const badge = document.getElementById('turn-badge');
+        badge.innerText = `${pName}'s Turn`;
+        badge.style.background = (turn === "BLUE") ? 'var(--team-blue)' : 'var(--team-orange)';
+        
+        document.getElementById('question-box').innerText = curQ.q;
+        document.getElementById('btnA').innerHTML = `<span>A</span> ${curQ.o[0]}`;
+        document.getElementById('btnB').innerHTML = `<span>B</span> ${curQ.o[1]}`;
+        document.getElementById('btnC').innerHTML = `<span>C</span> ${curQ.o[2]}`;
+        document.getElementById('btnD').innerHTML = `<span>D</span> ${curQ.o[3]}`;
+    }
+
+    function processInput(choice) {
+        if(!gameOn) return;
+        const correct = (choice === curQ.a);
+        const pName = (turn === "BLUE") ? bPlayers[bIdx % bPlayers.length] : oPlayers[oIdx % oPlayers.length];
+        
+        const pullPower = 70;    // Opponent khincha jayega
+        const penaltyPower = 40; // Khud khinchega
+
+        if(correct) {
+            playSnd('snd-correct');
+            playerStats[pName].correct++;
+            if(turn === "BLUE") { oPos -= pullPower; changeMood("blue-squad", "orange-squad", "😈", "😰"); }
+            else { bPos += pullPower; changeMood("orange-squad", "blue-squad", "😈", "😰"); }
+            setTimeout(() => playSnd('snd-pull'), 150);
+        } else {
+            playSnd('snd-wrong');
+            playerStats[pName].wrong++;
+            if(turn === "BLUE") { bPos += penaltyPower; changeMood("orange-squad", "blue-squad", "🤣", "😳", true); }
+            else { oPos -= penaltyPower; changeMood("blue-squad", "orange-squad", "🤣", "😳", true); }
+        }
+
+        updateArena();
+        
+        if(checkGameOver()) {
+            gameOn = false;
+            setTimeout(declareWinner, 500);
+        } else {
+            turn = (turn === "BLUE") ? "ORANGE" : "BLUE";
+            if(turn === "BLUE") oIdx++; else bIdx++;
+            setTimeout(nextRound, 1000);
+        }
+    }
+
+    function updateArena() {
+        document.documentElement.style.setProperty('--blue-pos', bPos + "px");
+        document.documentElement.style.setProperty('--orange-pos', oPos + "px");
+        document.getElementById('rope').style.transform = `translateX(${(bPos + oPos)/2}px)`;
+        updateDistance();
+    }
+
+    function updateDistance() {
+        const center = window.innerWidth / 2;
+        const bSquad = document.getElementById('blue-squad');
+        const oSquad = document.getElementById('orange-squad');
+        
+        if (bSquad.children.length > 0 && oSquad.children.length > 0) {
+            const blueRight = bSquad.children[0].getBoundingClientRect().right;
+            const orangeLeft = oSquad.children[0].getBoundingClientRect().left;
+            
+            const bDist = Math.max(0, Math.floor(center - blueRight));
+            const oDist = Math.max(0, Math.floor(orangeLeft - center));
+            
+            document.getElementById('blue-dist').innerText = `Line: ${bDist} px`;
+            document.getElementById('orange-dist').innerText = `Line: ${oDist} px`;
+        }
+    }
+
+    function checkGameOver() {
+        const centerLine = window.innerWidth / 2;
+        const blueP = document.querySelectorAll('#blue-squad .player');
+        const orangeP = document.querySelectorAll('#orange-squad .player');
+        for(let p of blueP) { if(p.getBoundingClientRect().right > centerLine) return true; }
+        for(let p of orangeP) { if(p.getBoundingClientRect().left < centerLine) return true; }
+        return false;
+    }
+
+    function changeMood(winId, loseId, wEmoji, lEmoji, shake = false) {
+        document.querySelectorAll(`#${winId} .head`).forEach(h => h.innerText = wEmoji);
+        document.querySelectorAll(`#${loseId} .head`).forEach(h => {
+            h.innerText = lEmoji;
+            if(shake) h.parentElement.classList.add('shake');
+        });
+        setTimeout(() => {
+            document.querySelectorAll('.head').forEach(h => h.innerText = "😤");
+            document.querySelectorAll('.player').forEach(p => p.classList.remove('shake'));
+        }, 800);
+    }
+
+    function declareWinner() {
+        playSnd('snd-win');
+        const center = window.innerWidth / 2;
+        const blueLost = Array.from(document.querySelectorAll('#blue-squad .player')).some(p => p.getBoundingClientRect().right > center);
+        const winner = blueLost ? "ORANGE TEAM" : "BLUE TEAM";
+        
+        const lb = document.getElementById('leaderboard-box');
+        lb.innerHTML = '<h3 style="color:var(--team-blue); margin-bottom:10px;">FINAL SCOREBOARD</h3>';
+        Object.keys(playerStats).forEach(p => {
+            lb.innerHTML += `
+                <div class="lb-row">
+                    <span>${p}</span>
+                    <span><b style="color:#4caf50">✔ ${playerStats[p].correct}</b> | <b style="color:#f44336">✖ ${playerStats[p].wrong}</b></span>
+                </div>`;
+        });
+        document.getElementById('win-overlay').style.display = 'flex';
+        document.getElementById('win-text').innerText = `${winner} WINS!`;
+    }
+
+    // --- Keyboard Input Logic ---
+    window.addEventListener('keydown', (e) => {
+        if(!gameOn) return;
+        const key = e.key.toUpperCase();
+        if(key === 'A') processInput('A'); // Option A
+        if(key === 'S') processInput('B'); // Option B
+        if(key === 'D') processInput('C'); // Option C
+        if(key === 'F') processInput('D'); // Option D
+    });
+
+</script>
+</body>
+</html>
